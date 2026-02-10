@@ -1,0 +1,4 @@
+.vscode
+build
+web/ppm_web.js
+web/ppm_web.wasm
