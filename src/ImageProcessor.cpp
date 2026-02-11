@@ -83,11 +83,11 @@ void ImageProcessor::applyFilter() {
     this->height=newHeight;
     this->width=newWidth;
 
-    // for(int i{1};i<height-2;i++){
-        // for(int j{1};j<width-2;j++){
+    for(int i{1};i<height-2;i++){
+        for(int j{1};j<width-2;j++){
             placeholderFilter(outputGrid,1,1);
-        // }
-    // }
+        }
+    }
 
     std::cout << "Pixel 0:\t" << (int)inputGrid[0, 0].r<<" "<<(int)inputGrid[0, 0].g<<" "<<(int)inputGrid[0, 0].b << std::endl;
     std::cout << "Working..." << std::endl;
