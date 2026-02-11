@@ -1,36 +1,17 @@
 #include <memory>
 #include <cstdint>
 #include <span>
+#include <mdspan>
 #include "ImageProcessor.h"
 #include <iostream>
 #include "isPrime.h"
+#include "Pixel.h"
+#include <Filters.h>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-struct Pixel{
-    uint8_t r,g,b,a;
-    Pixel operator+(int value){
-        r+=value;
-        g+=value;
-        b+=value;
-        return *this;
-    }
-    Pixel& operator=(const Pixel& other){
-        r=other.r;
-        g=other.g;
-        b=other.b;
-        a=other.a;
-        return *this;
-    }
-    Pixel& operator=(int assignmentValue){
-        r=assignmentValue;
-        g=assignmentValue;
-        b=assignmentValue;
-        a=assignmentValue;
-        return *this;
-    }
-};
+
 
 ImageProcessor::ImageProcessor() : width(0), height(0), channels(0), pixelData(nullptr) {
     std::cout << "[C++] ImageProcessor Initialized" << std::endl;
@@ -77,29 +58,41 @@ void ImageProcessor::applyFilter() {
         std::cerr << "[C++] Failed to process image." << std::endl;
     }
 
-    std::span<Pixel> perPixelInterface(reinterpret_cast<Pixel*>(pixelData),width*height);
+    std::mdspan inputGrid(reinterpret_cast<Pixel*>(pixelData), height, width);
 
     int newWidth{width+2};
     int newHeight{height+2};
     auto borderedPixelData = std::make_unique_for_overwrite<unsigned char[]>(newWidth * newHeight * 4);
-    std::span<Pixel> borderedPerPixelInterface(reinterpret_cast<Pixel*>(borderedPixelData.get()),newWidth*newHeight);
+    
+    std::mdspan outputGrid(reinterpret_cast<Pixel*>(borderedPixelData.get()), newHeight, newWidth);
+
+
     for(int i{};i<newWidth;i++){
-        borderedPerPixelInterface[i]=0;
-        borderedPerPixelInterface[(newHeight-1)*newWidth + i]=0;
+        outputGrid[0, i] = 0;
+        outputGrid[newHeight - 1, i] = 0;
     }
+
     for(int i{};i<height;i++){
-        borderedPerPixelInterface[newWidth*(i+1)]=0;
-        borderedPerPixelInterface[(i+1) * newWidth + (newWidth - 1)]=0;
+        outputGrid[i + 1, 0] = 0;
+        outputGrid[i + 1, newWidth - 1] = 0;
         for(int j{};j<width;j++){
-            borderedPerPixelInterface[(i + 1) * newWidth + (j + 1)]=perPixelInterface[width*i+j];
+
+            outputGrid[i + 1, j + 1] = inputGrid[i, j]; 
         }
     }
     this->height=newHeight;
     this->width=newWidth;
-    std::cout << "Pixel 0:\t" << (int)perPixelInterface[0].r<<" "<<(int)perPixelInterface[0].g<<" "<<(int)perPixelInterface[0].b << std::endl;
-    std::cout << "Pixel 0:\t" << (int)perPixelInterface[0].r<<" "<<(int)perPixelInterface[0].g<<" "<<(int)perPixelInterface[0].b << std::endl;
+
+    // for(int i{1};i<height-2;i++){
+        // for(int j{1};j<width-2;j++){
+            placeholderFilter(outputGrid,1,1);
+        // }
+    // }
+
+    std::cout << "Pixel 0:\t" << (int)inputGrid[0, 0].r<<" "<<(int)inputGrid[0, 0].g<<" "<<(int)inputGrid[0, 0].b << std::endl;
     std::cout << "Working..." << std::endl;
     pixelData=borderedPixelData.release();
+    std::cout << "Pixel 0:\t" << (int)outputGrid[1, 1].r<<" "<<(int)outputGrid[1, 1].g<<" "<<(int)outputGrid[1, 1].b << std::endl;
 }
 
 int ImageProcessor::getWidth() const { return width; }
