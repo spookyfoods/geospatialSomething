@@ -17,7 +17,7 @@ public:
     bool loadImage(uintptr_t bufferPtr, int size);
 
 
-    void applyFilter();
+    void applyFilter(int kernelSize);
 
     int getWidth() const;
     int getHeight() const;

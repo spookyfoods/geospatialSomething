@@ -7,39 +7,31 @@
 #include <vector>
 
 
-void placeholderFilter(const std::mdspan<Pixel, std::dextents<size_t, 2>>& inputGrid, 
-                       std::mdspan<Pixel, std::dextents<size_t, 2>>& outputGrid, 
-                       size_t rowNum, size_t colNum) {
-    
-    // Kernel: 
-    // -1  -1  -1
-    // -1   8  -1
-    // -1  -1  -1
+void placeholderFilter(std::mdspan<Pixel, std::dextents<size_t, 2>>& inputGrid, 
+                       const std::mdspan<Pixel, std::dextents<size_t, 2>>& outputGrid, 
+                       size_t inputGridRowNum, size_t inputGridColNum) {
+    int borderWidth = (outputGrid.extent(0)-inputGrid.extent(0))/2;
+    // Kernel: Box Blur
     
     int sumR = 0;
     int sumG = 0;
     int sumB = 0;
 
-    for(int dy = -1; dy <= 1; ++dy) {
-        for(int dx = -1; dx <= 1; ++dx) {
-            
-            long long inY = static_cast<long long>(rowNum) - 1 + dy;
-            long long inX = static_cast<long long>(colNum) - 1 + dx;
+    // outputGrid Equivalent for a Pixel A on the inputGrid => (rowNum+borderWidth) , (colNum+borderWidth) 
+    int outputGridRowNum = inputGridRowNum+borderWidth;
+    int outputGridColNum = inputGridColNum+borderWidth;
 
-            if(inY >= 0 && inY < static_cast<long long>(inputGrid.extent(0)) && 
-               inX >= 0 && inX < static_cast<long long>(inputGrid.extent(1))) {
-                
-                Pixel p = inputGrid[inY, inX];
-                int kernelVal = (dy == 0 && dx == 0) ? 8 : -1;
-
-                sumR += p.r * kernelVal;
-                sumG += p.g * kernelVal;
-                sumB += p.b * kernelVal;
-            }
+    for(int i {outputGridRowNum-borderWidth};i<=outputGridRowNum+borderWidth;i++){
+        for(int j {outputGridColNum-borderWidth};j<=outputGridColNum+borderWidth;j++){
+            sumR += outputGrid[i,j].r;
+            sumG += outputGrid[i,j].g;
+            sumB += outputGrid[i,j].b;
         }
     }
-
-    outputGrid[rowNum, colNum] = Pixel{
+    sumR/=(2*borderWidth+1)*(2*borderWidth+1);
+    sumG/=(2*borderWidth+1)*(2*borderWidth+1);
+    sumB/=(2*borderWidth+1)*(2*borderWidth+1);
+    inputGrid[inputGridRowNum, inputGridColNum] = Pixel{
         static_cast<uint8_t>(std::clamp(sumR, 0, 255)),
         static_cast<uint8_t>(std::clamp(sumG, 0, 255)),
         static_cast<uint8_t>(std::clamp(sumB, 0, 255)),

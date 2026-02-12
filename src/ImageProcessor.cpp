@@ -53,45 +53,56 @@ bool ImageProcessor::loadImage(uintptr_t bufferPtr, int size) {
     return true;
 }
 
-void ImageProcessor::applyFilter() {
+void ImageProcessor::applyFilter(int kernelSize) {
     if(!pixelData){
         std::cerr << "[C++] Failed to process image." << std::endl;
     }
+    // kernel size must be odd and a square => (2n+1) x (2n+1)
+    int borderWidth=(kernelSize-1)/2;
 
     std::mdspan inputGrid(reinterpret_cast<Pixel*>(pixelData), height, width);
 
-    int newWidth{width+2};
-    int newHeight{height+2};
+    int newWidth{width+2*(borderWidth)};
+    int newHeight{height+2*(borderWidth)};
     auto borderedPixelData = std::make_unique_for_overwrite<unsigned char[]>(newWidth * newHeight * 4);
     
     std::mdspan outputGrid(reinterpret_cast<Pixel*>(borderedPixelData.get()), newHeight, newWidth);
 
-
-    for(int i{};i<newWidth;i++){
-        outputGrid[0, i] = 0;
-        outputGrid[newHeight - 1, i] = 0;
-    }
-
-    for(int i{};i<height;i++){
-        outputGrid[i + 1, 0] = 0;
-        outputGrid[i + 1, newWidth - 1] = 0;
-        for(int j{};j<width;j++){
-
-            outputGrid[i + 1, j + 1] = inputGrid[i, j]; 
+    // Creating the top and bottom border
+    for(int i{0};i<borderWidth;i++){
+        for(int j{};j<newWidth;j++){
+            outputGrid[i, j] = 0;
+            outputGrid[newHeight - borderWidth + i, j] = 0;
         }
     }
-    this->height=newHeight;
-    this->width=newWidth;
 
-    for(int i{1};i<height-1;i++){
-        for(int j{1};j<width-1;j++){
+    // Filling in the original image in the middle and also creating the side borders
+
+    for(int i{borderWidth}; i < newHeight - borderWidth; i++) {
+        // Write Left Border
+        for(int j{0}; j < borderWidth; j++) {
+            outputGrid[i, j] = 0;
+        }
+
+        // Copy Image
+        for(int k{borderWidth}; k < newWidth - borderWidth; k++) {
+            outputGrid[i, k] = inputGrid[i-borderWidth, k-borderWidth];
+        }
+
+        // Write Right Border
+        for(int j{0}; j < borderWidth; j++) {
+            outputGrid[i, newWidth - borderWidth + j] = 0;
+        }
+    }
+    // Iterating through the cells of input grid
+    for(int i{0};i<height;i++){
+        for(int j{0};j<width;j++){
             placeholderFilter(inputGrid,outputGrid,i,j);
         }
     }
 
     std::cout << "Pixel 0:\t" << (int)inputGrid[0, 0].r<<" "<<(int)inputGrid[0, 0].g<<" "<<(int)inputGrid[0, 0].b << std::endl;
     std::cout << "Working..." << std::endl;
-    pixelData=borderedPixelData.release();
     std::cout << "Pixel 0:\t" << (int)outputGrid[1, 1].r<<" "<<(int)outputGrid[1, 1].g<<" "<<(int)outputGrid[1, 1].b << std::endl;
 }
 
