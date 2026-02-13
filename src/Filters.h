@@ -3,9 +3,9 @@
 
 #include "ImageProcessor.h"
 #include <Pixel.h>
+#include <iostream>
 #include <mdspan>
 #include <vector>
-#include <iostream>
 
 void naiveBoxBlur(std::mdspan<Pixel, std::dextents<size_t, 2>>& inputGrid,
                   const std::mdspan<Pixel, std::dextents<size_t, 2>>& paddedGrid,
@@ -41,27 +41,36 @@ void naiveBoxBlur(std::mdspan<Pixel, std::dextents<size_t, 2>>& inputGrid,
 void satBoxBlur(std::mdspan<Pixel, std::dextents<size_t, 2>>& inputGrid,
                 const std::mdspan<Pixel, std::dextents<size_t, 2>>& paddedGrid,
                 const std::mdspan<SatPixel, std::dextents<size_t, 2>>& satGrid,
-                size_t inputGridRowNum, size_t inputGridColNum, int borderWidth) {
-
+                size_t inputGridRowNum, size_t inputGridColNum, int kernelSize) {
 
     // paddedGrid Equivalent for a Pixel A on the inputGrid => (rowNum+borderWidth) ,
     // (colNum+borderWidth)
-    int borderWidthAccountingEdge=borderWidth+1;
-    int paddedGridRowNum = inputGridRowNum + borderWidthAccountingEdge;
-    int paddedGridColNum = inputGridColNum + borderWidthAccountingEdge;
+    int radius = (kernelSize - 1) / 2;
 
-    const SatPixel& p1 = satGrid[paddedGridRowNum + borderWidth, paddedGridColNum + borderWidth];
-    const SatPixel& p2 = satGrid[paddedGridRowNum, (paddedGridColNum - borderWidth) - 1];
-    const SatPixel& p3 = satGrid[(paddedGridRowNum - borderWidth) - 1, paddedGridColNum];
-    const SatPixel& p4 = satGrid[paddedGridRowNum - borderWidth, paddedGridColNum - borderWidth];
+    int borderWidth = radius + 1;
+    int paddedGridRowNum = inputGridRowNum + borderWidth;
+    int paddedGridColNum = inputGridColNum + borderWidth;
 
-    std::cout << "\nHERE" << int(p1.r) << "HERE\n";
-    int kernelSize = (2 * borderWidth + 1);
+    int r1 = paddedGridRowNum - radius;
+    int c1 = paddedGridColNum - radius;
+    int r2 = paddedGridRowNum + radius;
+    int c2 = paddedGridColNum + radius;
+
+    const SatPixel& p1 = satGrid[r2, c2];
+    const SatPixel& p2 = satGrid[r2, c1 - 1];
+    const SatPixel& p3 = satGrid[r1 - 1, c2];
+    const SatPixel& p4 = satGrid[r1 - 1, c1 - 1];
+
     int area = kernelSize * kernelSize;
 
-    int32_t sumR = (static_cast<int32_t>(p1.r) - static_cast<int32_t>(p2.r) -
-                   static_cast<int32_t>(p3.r) + static_cast<int32_t>(p4.r))/area;
-    __builtin_trap();
+    uint32_t sumR = p1.r - p2.r - p3.r + p4.r;
+    uint32_t sumG = p1.g - p2.g - p3.g + p4.g;
+    uint32_t sumB = p1.b - p2.b - p3.b + p4.b;
+    uint32_t sumA = p1.a - p2.a - p3.a + p4.a;
+
+    inputGrid[inputGridRowNum, inputGridColNum] = {
+        static_cast<uint8_t>(sumR / area), static_cast<uint8_t>(sumG / area),
+        static_cast<uint8_t>(sumB / area), static_cast<uint8_t>(sumA / area)};
 }
 
 #endif

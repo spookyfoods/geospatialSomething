@@ -18,6 +18,8 @@ ImageProcessor::ImageProcessor() : width(0), height(0), channels(0), pixelData(n
 ImageProcessor::~ImageProcessor() { delete[] pixelData; }
 
 bool ImageProcessor::loadImage(uintptr_t bufferPtr, int size) {
+        // __builtin_trap();
+
     const unsigned char* rawData = reinterpret_cast<const unsigned char*>(bufferPtr);
     int tempW, tempH, tempC;
     unsigned char* tempStbData = stbi_load_from_memory(rawData, size, &tempW, &tempH, &tempC, 4);
@@ -84,71 +86,56 @@ void ImageProcessor::applyFilter(int kernelSize) {
         std::cerr << "[C++] Failed to process image." << std::endl;
     }
     // kernel size must be odd and a square => (2n+1) x (2n+1)
-    int borderWidth = (kernelSize - 1) / 2;
     bool create_sat{true};
+    int borderWidth = ((kernelSize - 1) / 2) + static_cast<int>(create_sat);
     int newWidth{width + 2 * (borderWidth)};
     int newHeight{height + 2 * (borderWidth)};
-    if(create_sat) {
-        newWidth=width + 2 * (borderWidth+1);
-        newHeight=height + 2 * (borderWidth+1);
-    }
+
+    /*
     auto paddedData = std::make_unique_for_overwrite<unsigned char[]>(newWidth * newHeight * 4);
+    */
+    auto paddedData = std::make_unique<unsigned char[]>(newWidth * newHeight * 4);
+
+
 
     // Height represents Number of Rows
     // Width rerpresents Number of Cols
     std::mdspan inputGrid(reinterpret_cast<Pixel*>(pixelData), height, width);
     std::mdspan paddedGrid(reinterpret_cast<Pixel*>(paddedData.get()), newHeight, newWidth);
-
+    /*
     auto SAT = std::make_unique_for_overwrite<uint32_t[]>(4 * newHeight * newWidth);
+    */
+    auto SAT = std::make_unique<uint32_t[]>(4 * newHeight * newWidth);
+
     std::mdspan satGrid(reinterpret_cast<SatPixel*>(SAT.get()), newHeight, newWidth);
 
     createPadding(newWidth, newHeight, borderWidth, inputGrid, paddedGrid);
-    if(create_sat) {
-        // Fill the top and bottom border of the SAT Table
-        for(int i{0}; i < borderWidth; i++) {
-            for(int j{0}; j < newWidth; j++) {
-                satGrid[i, j] = 0;
-                satGrid[newHeight - borderWidth + i, j] = 0;
-            }
-        }
 
-        // Filling in the original image in the middle and also creating the side borders
-        for(int i{borderWidth}; i < newHeight - borderWidth; i++) {
-            // Fill the Left Border border of the SAT Table
-            for(int j{0}; j < borderWidth; j++) {
-                satGrid[i, j] = 0;
-            }
-            // Create the SAT values
-            for(int k{borderWidth}; k < newWidth - borderWidth; k++) {
+    if(create_sat) {
+        for(int i{borderWidth}; i < newHeight; i++) {
+            // Create the SAT values of all the middle pixels and the right and bottom border
+            // excluding the very last rows and columns, because they won't be accessed
+            for(int k{borderWidth}; k < newWidth; k++) {
                 satGrid[i, k] = paddedGrid[i, k] + satGrid[i - 1, k] + satGrid[i, k - 1] -
                                 satGrid[i - 1, k - 1];
             }
-            // Fill the Right Border border of the SAT Table
-            for(int j{0}; j < borderWidth; j++) {
-                satGrid[i, newWidth - borderWidth + j] = 0;
-            }
         }
-
     } else {
         SAT.reset();
     }
+    std::cout << "\nInput Pix[0,0]:\t"<<(int)inputGrid[0,0].r<<" "<<(int)inputGrid[0,0].g<<" "<<(int)inputGrid[0,0].b<<"\n";
     // Iterating through the cells of input grid
 
-    // for(int i{0};i<height;i++){
-    // for(int j{0};j<width;j++){
-    satBoxBlur(inputGrid, paddedGrid, satGrid, 0, 0,borderWidth);
-    // }
-    // }
+    for(int i{0}; i < height; i++) {
+        for(int j{0}; j < width; j++) {
+            satBoxBlur(inputGrid, paddedGrid, satGrid,i,j, kernelSize);
+        }
+    }
+    std::cout << "\nInput Pix[0,0]:\t"<<(int)inputGrid[0,0].r<<" "<<(int)inputGrid[0,0].g<<" "<<(int)inputGrid[0,0].b<<"\n";
 
-    satPixelData = SAT.release();
-    std::cout << "Pixel 0:\t" << (int)inputGrid[0, 0].r << " " << (int)inputGrid[0, 0].g << " "
-              << (int)inputGrid[0, 0].b << std::endl;
-    std::cout << "Working..." << std::endl;
-    std::cout << "Pixel 0:\t" << (int)paddedGrid[1, 1].r << " " << (int)paddedGrid[1, 1].g << " "
-              << (int)paddedGrid[1, 1].b << std::endl;
-    std::cout << '\n'
-              << satGrid[newHeight / 4, newWidth / 4].r << "\t\t"
-              << satGrid[newHeight / 2, newWidth / 2].r;
+    saveSATToCSV("sat_output.csv", satGrid, newHeight, newWidth);
+    // __builtin_trap();
+
 }
 
 int ImageProcessor::getWidth() const { return width; }

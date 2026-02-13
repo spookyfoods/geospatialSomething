@@ -10,5 +10,7 @@ EMSCRIPTEN_BINDINGS(my_module) {
         .function("applyFilter", &ImageProcessor::applyFilter)
         .function("getWidth", &ImageProcessor::getWidth)
         .function("getHeight", &ImageProcessor::getHeight)
-        .function("getPixelDataPtr", &ImageProcessor::getPixelDataPtr);
+        .function("getPixelDataPtr", &ImageProcessor::getPixelDataPtr)
+        .function("createPadding",&ImageProcessor::getPixelDataPtr)
+        ;
 }
