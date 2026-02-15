@@ -39,18 +39,14 @@ void naiveBoxBlur(std::mdspan<Pixel, std::dextents<size_t, 2>>& inputGrid,
 }
 void satBoxBlur(std::mdspan<Pixel, std::dextents<size_t, 2>>& inputGrid,
                 const std::mdspan<SatPixel, std::dextents<size_t, 2>>& satGrid,
-                size_t inputGridRowNum, size_t inputGridColNum, int kernelSize) {
+                size_t inputGridRowNum, size_t inputGridColNum) {
 
     // paddedGrid Equivalent for a Pixel A on the inputGrid => (rowNum+borderWidth) ,
     // (colNum+borderWidth)
-    int radius = (kernelSize - 1) / 2;
 
-    int borderWidth = radius + 1;
-    int mike = satGrid.extent(0) -inputGrid.extent(0);
-    // if(mike==borderWidth){
-    //     std::cout << "HEY GOOD";
-    //     EXIT_FAILURE;
-    // }
+    int borderWidth = (satGrid.extent(0) - inputGrid.extent(0))/2;
+    int radius = borderWidth-1;
+    int area = (2*radius+1) * (2*radius+1);
 
     int paddedGridRowNum = inputGridRowNum + borderWidth;
     int paddedGridColNum = inputGridColNum + borderWidth;
@@ -65,7 +61,6 @@ void satBoxBlur(std::mdspan<Pixel, std::dextents<size_t, 2>>& inputGrid,
     const SatPixel& p3 = satGrid[r1 - 1, c2];
     const SatPixel& p4 = satGrid[r1 - 1, c1 - 1];
 
-    int area = kernelSize * kernelSize;
 
     uint32_t sumR = p1.r - p2.r - p3.r + p4.r;
     uint32_t sumG = p1.g - p2.g - p3.g + p4.g;

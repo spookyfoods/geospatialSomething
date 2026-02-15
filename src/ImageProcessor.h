@@ -18,10 +18,11 @@ class ImageProcessor {
         std::pair<std::unique_ptr<unsigned char[]>, std::mdspan<Pixel, std::dextents<size_t, 2>>>;
     paddedDataAndGrid createPadding(int newWidth, int newHeight, int borderWidth,
                                     std::mdspan<Pixel, std::dextents<size_t, 2>> inputGrid);
-    using satDataAndGrid = std::pair<std::unique_ptr<uint32_t[]>,
-                                     std::mdspan<SatPixel, std::dextents<size_t, 2>>>;
+    using satDataAndGrid =
+        std::pair<std::unique_ptr<uint32_t[]>, std::mdspan<SatPixel, std::dextents<size_t, 2>>>;
     satDataAndGrid computeSAT(int newWidth, int newHeight, int borderWidth,
-                                std::mdspan<Pixel, std::dextents<size_t, 2>> paddedGrid);
+                              std::mdspan<Pixel, std::dextents<size_t, 2>> paddedGrid,
+                              bool parallel=false);
 
   public:
     ImageProcessor();

@@ -60,6 +60,14 @@ struct GenericPixel {
         r = g = b = a = clamp_cast(value);
         return *this;
     }
+    template <typename U>
+    GenericPixel& operator=(const GenericPixel<U>& other) {
+        r = clamp_cast(static_cast<int64_t>(other.r));
+        g = clamp_cast(static_cast<int64_t>(other.g));
+        b = clamp_cast(static_cast<int64_t>(other.b));
+        a = clamp_cast(static_cast<int64_t>(other.a)); 
+        return *this;
+    }
 };
 
 // --- Global Binary Operators ---
