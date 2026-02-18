@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <mdspan>
 #include <string>
+#include <memory>
 
 class ImageProcessor {
   private:
