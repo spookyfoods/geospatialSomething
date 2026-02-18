@@ -270,7 +270,7 @@ void ImageProcessor::applyFilter(int kernelSize, std::string filterType) {
 
     if(create_sat) {
         auto [satData, satGrid] = computeSAT(newWidth, newHeight, borderWidth, paddedGrid,
-                                             ImageProcessor::SatMethod::TWO_PASS_BARRIER);
+                                             ImageProcessor::SatMethod::SERIAL);
         std::cout << "\nRUNNING SAT BOX BLUR" << std::endl;
         traverse([&](int i, int j) { satBoxBlur(inputGrid, satGrid, i, j); });
     } else {

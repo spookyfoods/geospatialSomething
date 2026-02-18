@@ -2,7 +2,7 @@
 #define FUNCTIONS_H
 
 #include "ImageProcessor.h"
-#include <Pixel.h>
+#include "Pixel.h"
 #include <iostream>
 #include <mdspan>
 #include <vector>

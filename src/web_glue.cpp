@@ -3,9 +3,6 @@
 
 using namespace emscripten;
 
-int main(){
-    return 0;
-}
 
 EMSCRIPTEN_BINDINGS(my_module) {
     class_<ImageProcessor>("ImageProcessor")
