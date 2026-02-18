@@ -3,6 +3,10 @@
 
 using namespace emscripten;
 
+int main(){
+    return 0;
+}
+
 EMSCRIPTEN_BINDINGS(my_module) {
     class_<ImageProcessor>("ImageProcessor")
         .constructor<>()
@@ -11,6 +15,5 @@ EMSCRIPTEN_BINDINGS(my_module) {
         .function("getWidth", &ImageProcessor::getWidth)
         .function("getHeight", &ImageProcessor::getHeight)
         .function("getPixelDataPtr", &ImageProcessor::getPixelDataPtr)
-        .function("createPadding",&ImageProcessor::getPixelDataPtr)
         ;
 }
