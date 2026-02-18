@@ -3,6 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
+    <script src="coi-serviceworker.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="WebPPM Studio - WASM based artifact restoration tool">
     <title>WebPPM Studio | Artifact Restoration</title>
@@ -102,25 +103,21 @@
         WebPPM Studio // Experimental WASM Build // v2.1
     </footer>
 
-    <script src="ppm_web.js"></script>
 
     <script>
         // --- Global State ---
-        let wasmModule = null;
-        let processor = null;
+        // We no longer hold 'wasmModule' or 'processor' here directly.
+        // We interact solely through this worker.
+        const worker = new Worker('worker.js');
 
         // UI Elements
         const fileInput = document.getElementById('file-upload');
         const dropZone = document.getElementById('drop-zone');
         const btnProcess = document.getElementById('btn-process');
-
-        // REMOVED: CSV button is no longer supported by the C++ backend
-        const btnDownloadCsv = document.getElementById('btn-download-csv');
-
         const btnDownloadImg = document.getElementById('btn-download-img');
         const statusVal = document.getElementById('status-val');
         const dimsVal = document.getElementById('dims-val');
-        const memVal = document.getElementById('mem-val');
+        const memVal = document.getElementById('mem-val'); // Note: Mem usage updates might be limited from worker
         const consoleLog = document.getElementById('console-log');
         const sourceImage = document.getElementById('source-image');
         const canvas = document.getElementById('output-canvas');
@@ -136,39 +133,55 @@
             consoleLog.scrollTop = consoleLog.scrollHeight;
         }
 
-        // --- Step 0: Pre-flight Check for Threading Support ---
-        // Your new C++ code uses std::thread. This requires Cross-Origin Isolation.
+        // --- Step 0: Pre-flight Check ---
         if (!window.crossOriginIsolated) {
             log("⚠️ WARNING: Page is not Cross-Origin Isolated.");
-            log("   Multi-threading (std::thread) will likely fail or crash.");
-            log("   Ensure you serve this with headers:");
-            log("   'Cross-Origin-Opener-Policy': 'same-origin'");
-            log("   'Cross-Origin-Embedder-Policy': 'require-corp'");
-            statusVal.textContent = "Security Error (See Log)";
+            log("   The Worker (and std::thread) requires COOP/COEP headers.");
+            statusVal.textContent = "Security Headers Missing";
         }
 
-        // --- Step 1: Initialize Wasm Engine ---
-        const moduleConfig = {
-            print: (text) => log("[C++] " + text),
-            printErr: (text) => log("[C++ Error] " + text),
-            onRuntimeInitialized: () => { /* Handled in Promise */ }
+        // --- Step 1: Handle Worker Messages ---
+        worker.onmessage = function (e) {
+            const { type, payload, width, height, pixels, message } = e.data;
+
+            switch (type) {
+                case 'READY':
+                    statusVal.textContent = "Engine Ready";
+                    fileInput.disabled = false;
+                    log("System: Worker initialized successfully.");
+                    break;
+
+                case 'IMAGE_LOADED':
+                    statusVal.textContent = "Image Loaded";
+                    dimsVal.textContent = `${width} x ${height}`;
+                    btnProcess.disabled = false;
+                    log(`System: Image decoded (${width}x${height}).`);
+                    break;
+
+                case 'RENDER':
+                    // The worker sent us raw pixel data (Uint8ClampedArray)
+                    // We simply put it onto the canvas.
+                    canvas.width = width;
+                    canvas.height = height;
+                    const imageData = new ImageData(pixels, width, height);
+                    ctx.putImageData(imageData, 0, 0);
+                    break;
+
+                case 'FILTER_DONE':
+                    statusVal.textContent = "Done";
+                    document.body.classList.remove('processing-overlay');
+                    btnDownloadImg.disabled = false;
+                    log("System: Filter processing complete.");
+                    break;
+
+                case 'ERROR':
+                    console.error("Worker Error:", message);
+                    log("Error: " + message);
+                    statusVal.textContent = "Error";
+                    document.body.classList.remove('processing-overlay');
+                    break;
+            }
         };
-
-        // Initialize Module
-        createModule(moduleConfig).then(instance => {
-            wasmModule = instance;
-            processor = new wasmModule.ImageProcessor();
-
-            fileInput.disabled = false;
-            statusVal.textContent = "Engine Ready";
-            log("System: Wasm Module Loaded & Processor Created.");
-
-            // Disable CSV button as C++ no longer writes files
-            btnDownloadCsv.disabled = true;
-            btnDownloadCsv.title = "CSV logging removed in current C++ version";
-
-            setupDragAndDrop();
-        });
 
         slider.addEventListener('input', (e) => sliderDisplay.textContent = e.target.value);
 
@@ -176,50 +189,30 @@
         async function loadFile(file) {
             if (!file) return;
 
-            statusVal.textContent = "Uploading...";
+            statusVal.textContent = "Uploading to Worker...";
             btnProcess.disabled = true;
             btnDownloadImg.disabled = true;
             sourceImage.src = URL.createObjectURL(file);
 
             try {
                 const arrayBuffer = await file.arrayBuffer();
-                const jsData = new Uint8Array(arrayBuffer);
 
-                // Allocate memory in C++ heap
-                const ptr = wasmModule._malloc(jsData.length);
-                wasmModule.HEAPU8.set(jsData, ptr);
-
-                log(`System: Loading ${file.name} (${(jsData.length / 1024).toFixed(1)} KB)...`);
-
-                setTimeout(() => {
-                    // Call C++: bool loadImage(uintptr_t bufferPtr, int size)
-                    const success = processor.loadImage(ptr, jsData.length);
-                    wasmModule._free(ptr); // Free the temp buffer
-
-                    if (success) {
-                        statusVal.textContent = "Image Loaded";
-                        btnProcess.disabled = false;
-
-                        const w = processor.getWidth();
-                        const h = processor.getHeight();
-                        dimsVal.textContent = `${w} x ${h}`;
-
-                        renderCanvas(); // Render raw state
-                    } else {
-                        statusVal.textContent = "Load Failed";
-                        log("System: Error loading image in C++.");
-                    }
-                }, 50);
+                // Send the raw bytes to the worker.
+                // We use the second argument [arrayBuffer] to TRANSFER ownership
+                // which is much faster than copying.
+                worker.postMessage({
+                    type: 'LOAD_IMAGE',
+                    payload: arrayBuffer
+                }, [arrayBuffer]);
 
             } catch (err) {
                 log("System Error: " + err.message);
-                statusVal.textContent = "Error";
             }
         }
 
         fileInput.addEventListener('change', (e) => loadFile(e.target.files[0]));
 
-        // --- Step 3: Drag and Drop Logic ---
+        // --- Step 3: Drag and Drop Logic (Mostly unchanged) ---
         function setupDragAndDrop() {
             ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
                 dropZone.addEventListener(eventName, (e) => {
@@ -243,36 +236,24 @@
                 }
             }, false);
         }
+        setupDragAndDrop();
 
         // --- Step 4: Process Image ---
         btnProcess.addEventListener('click', () => {
-            if (!processor) return;
-
             document.body.classList.add('processing-overlay');
             statusVal.textContent = "Processing...";
 
-            requestAnimationFrame(() => {
-                setTimeout(() => {
-                    const filterValue = parseInt(slider.value, 10);
-                    // Values: 'sat' or 'naive' (Matches C++ applyFilter logic)
-                    const selectedMethod = filterTypeSelect.value;
+            const filterValue = parseInt(slider.value, 10);
+            const selectedMethod = filterTypeSelect.value;
 
-                    const start = performance.now();
-
-                    // Call C++: void applyFilter(int kernelSize, std::string filterType)
-                    processor.applyFilter(filterValue, selectedMethod);
-
-                    const end = performance.now();
-                    const duration = (end - start).toFixed(2);
-
-                    renderCanvas();
-
-                    statusVal.textContent = `Done (${duration}ms)`;
-                    log(`System: Finished '${selectedMethod}' in ${duration}ms.`);
-
-                    btnDownloadImg.disabled = false;
-                    document.body.classList.remove('processing-overlay');
-                }, 10);
+            // Send command to worker
+            // This is non-blocking! The UI stays responsive.
+            worker.postMessage({
+                type: 'APPLY_FILTER',
+                payload: {
+                    filterType: selectedMethod,
+                    intensity: filterValue
+                }
             });
         });
 
@@ -292,34 +273,6 @@
                 }
             }, 'image/png');
         });
-
-        // --- Helper: Render ---
-        function renderCanvas() {
-            const width = processor.getWidth();
-            const height = processor.getHeight();
-            canvas.width = width;
-            canvas.height = height;
-
-            // Get pointer to pixel data (Rule of 5 fix in C++ recommended!)
-            const pixelPtr = processor.getPixelDataPtr();
-
-            // Create a view into the C++ heap
-            const wasmPixels = new Uint8ClampedArray(
-                wasmModule.HEAPU8.buffer,
-                pixelPtr,
-                width * height * 4
-            );
-
-            // Put image data onto canvas
-            const imageData = new ImageData(wasmPixels, width, height);
-            ctx.putImageData(imageData, 0, 0);
-
-            // Memory monitor
-            if (wasmModule.HEAPU8.buffer.byteLength) {
-                const mb = (wasmModule.HEAPU8.buffer.byteLength / (1024 * 1024)).toFixed(1);
-                memVal.textContent = `${mb} MB`;
-            }
-        }
     </script>
 </body>
 
