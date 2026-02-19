@@ -5,7 +5,7 @@
 #include "ImageProcessor.h"
 
 int main(int argc, char* argv[]){
-    if(argc!=3){
+    if(argc!=5){
         std::cout << "Error!";
         exit(1);
     }
@@ -19,8 +19,10 @@ int main(int argc, char* argv[]){
     std::vector<char> buffer(size);
     file.read(buffer.data(),size);
     ImageProcessor processor;
+    std::cout << static_cast<int>(atoi(argv[4]))  << argv[3];
+
     processor.loadImage(reinterpret_cast<uintptr_t>(buffer.data()), size);
-    processor.applyFilter(9,"sat");
+    processor.applyFilter(static_cast<int>(atoi(argv[4])),argv[3]);
     std::ofstream outputImage(outputPath, std::ios::binary);
     char* data = reinterpret_cast<char*>(processor.getPixelDataPtr());
     int totalPixels = processor.getWidth() * processor.getHeight();
