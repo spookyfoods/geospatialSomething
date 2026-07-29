@@ -1,0 +1,84 @@
+# Optic
+
+Optic is a high-performance C++23 image convolution engine. 
+It was originally build as a satellite imagery pre-processor but eventual got diverged to experiment with low-level image processing algorithms and modern memory management, there was an attempt to keep it to ZERO dependencies, hence only one single header library was used `stb_image.h`, to interface with images, as the library was made for C, I ended up discovering and utilizing std::mdspan to handle two-dimensional data views cleanly without being too bogged down handling raw pointers.
+
+## Building
+```bash
+cmake -B build
+cmake --build build
+./build/bin/ppm_cli <input-image> <output.ppm> <filter> <kernel-size>
+```
+## Architecture & Filters
+
+
+
+The engine relies on a templated kernel abstraction to apply visual filters dynamically. The core logic for this lives in src/Filters.cpp and src/Kernel.h.
+
+
+
+Supported operations:
+
+* **Box blur:** Standard averaging.
+
+* **Gaussian blur:** Features an auto-derived sigma calculated directly from the kernel size.
+
+* **Sobel edge detection:** Isolates image gradients and boundaries.
+
+* **Configurable border padding:** Handles edge cases when kernels overlap image boundaries.
+
+
+
+
+
+## Optimizing Convolution
+
+
+
+Naive convolution is inherently slow. Running an O(k²) neighborhood scan per pixel kills performance, especially as the kernel radius expands.
+
+Optic fixes this by implementing summed-area tables for the box blur operations. Pre-calculating the image grid's summed area reduces the per-pixel processing cost down to constant time. As a result, the kernel size no longer impacts the rendering speed.
+Albeit, extrememly performant, summed-area tables aren't really a very flexible option, so I had to eventually move past single threaded operations.
+
+
+
+## Threading Strategies
+
+
+
+To speed up our convolutions, the project implements and benchmarks three different multi-threading models:
+
+
+
+* **Serial baseline:** Single-threaded execution for baseline comparison.
+
+* **Wavefront pipeline:** Uses a condition variable to synchronize column and row passes efficiently.
+
+* **Two-pass barrier:** Splits data passes across four distinct parallel threads.
+
+
+
+Intermediate concurrency tests and synchronization models built during development are maintained in the concurrencyIntermediates/ directory.
+
+
+
+## Build Targets: Native & WebAssembly
+
+
+
+The exact same C++ engine compiles into two separate targets using the unified CMakeLists.txt.
+
+
+
+* **Native CLI:** A standard command-line executable driven by src/main.cpp.
+
+
+
+
+
+* **Browser Build:** Compiled to WebAssembly via Emscripten. The bridging logic in src/web_glue.cpp uses embind to connect the backend to an interactive frontend at web/index.html. UI styling is handled by web/style.css.
+
+## License
+License
+
+PolyForm Noncommercial 1.0.0
